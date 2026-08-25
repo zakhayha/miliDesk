@@ -1,0 +1,37 @@
+# Local builds — never ship machine output
+dist/
+dist-*/
+
+# Screenshot / UI captures and local preview harness
+tools/*.png
+tools/
+
+# Third-party extras not needed to compile
+lib/*.zip
+lib/*.yaml
+lib/Dependencies/
+lib/lhm/*.exe
+lib/lhm/*.pdb
+lib/lhm/*.xml
+lib/lhm/Aga.Controls.*
+lib/lhm/OxyPlot.*
+lib/lhm/de/
+lib/lhm/es/
+lib/lhm/fr/
+lib/lhm/it/
+lib/lhm/ja/
+lib/lhm/pl/
+lib/lhm/ru/
+lib/lhm/sv/
+lib/lhm/tr/
+lib/lhm/zh-CN/
+lib/lhm/zh-Hant/
+
+# Editor and local settings (these live in AppData at runtime anyway)
+.vs/
+*.user
+*.suo
+settings.ini
+error.log
+Thumbs.db
+Desktop.ini
