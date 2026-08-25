@@ -708,6 +708,7 @@ namespace DeskMonitor
             _flyout = new TrayFlyout(this);
             _tray = new TrayHub(this, _flyout);
             _tray.Apply(_settings);
+            TrayPromote.HideHardwareIcons();
             ApplyDock();
         }
 
@@ -723,7 +724,7 @@ namespace DeskMonitor
                 }
                 return;
             }
-            if (_dock == null) _dock = new TaskbarDock(this, _flyout);
+            if (_dock == null) _dock = new TaskbarDock(this);
             _dock.Apply(_settings);
             if (_last != null) _dock.SetValues(_last, this);
         }
@@ -754,11 +755,7 @@ namespace DeskMonitor
             if (_dock != null) _dock.SetValues(snap, this);
             if (_tray != null)
             {
-                _tray.SetTips(
-                    "CPU  " + FormatTemp(snap.CpuTempC) + "  " + FormatPct(snap.CpuLoad),
-                    "GPU  " + FormatTemp(snap.GpuTempC) + "  " + FormatPct(snap.GpuLoad),
-                    "RAM  " + FormatRam(snap.RamUsedGb) + "  " + FormatPct(snap.RamLoad),
-                    "ETH  ↓ " + FormatNet(snap.NetDownMBps) + "  ↑ " + FormatNet(snap.NetUpMBps));
+                _tray.SetTip("miliDesk  CPU " + FormatPct(snap.CpuLoad) + "  GPU " + FormatPct(snap.GpuLoad));
             }
         }
 

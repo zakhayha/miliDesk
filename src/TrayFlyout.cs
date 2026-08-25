@@ -196,8 +196,8 @@ namespace DeskMonitor
 
     internal sealed class TrayHub : IDisposable
     {
-        private readonly Forms.NotifyIcon[] _icons;
-        private readonly Drawing.Icon[] _glyphs;
+        private readonly Forms.NotifyIcon _icon;
+        private readonly Drawing.Icon _glyph;
         private readonly OverlayWindow _host;
         private readonly TrayFlyout _flyout;
         private readonly Forms.ContextMenu _menu;
@@ -210,56 +210,37 @@ namespace DeskMonitor
             _host = host;
             _flyout = flyout;
             _menu = BuildMenu();
-            string[] names = { "CPU", "GPU", "RAM", "ETH" };
-            _glyphs = new Drawing.Icon[names.Length];
-            _icons = new Forms.NotifyIcon[names.Length];
-            for (int i = 0; i < names.Length; i++)
+            _glyph = TrayGlyphs.Create("CPU");
+            _icon = new Forms.NotifyIcon
             {
-                _glyphs[i] = TrayGlyphs.Create(names[i]);
-                var icon = new Forms.NotifyIcon
-                {
-                    Text = names[i],
-                    Icon = _glyphs[i],
-                    Visible = false,
-                    ContextMenu = _menu
-                };
-                icon.MouseUp += OnIconMouseUp;
-                _icons[i] = icon;
-            }
-            var promote = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.6) };
-            promote.Tick += delegate
-            {
-                promote.Stop();
-                TrayPromote.TryShowOnTaskbar();
-                PlaceIconsVisible();
+                Text = "miliDesk",
+                Icon = _glyph,
+                Visible = false,
+                ContextMenu = _menu
             };
-            promote.Start();
-        }
-
-        private void PlaceIconsVisible()
-        {
-            for (int i = 0; i < _icons.Length; i++)
+            _icon.MouseUp += OnIconMouseUp;
+            TrayPromote.HideHardwareIcons();
+            var hide = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            hide.Tick += delegate
             {
-                if (_icons[i] == null || !_icons[i].Visible) continue;
-                _icons[i].Visible = false;
-                _icons[i].Visible = true;
-            }
-            TrayPromote.TryShowOnTaskbar();
+                hide.Stop();
+                TrayPromote.HideHardwareIcons();
+            };
+            hide.Start();
         }
 
         public void Apply(SettingsStore s)
         {
-            bool[] show = { s.ShowCpu, s.ShowGpu, s.ShowRam, s.ShowNet };
-            for (int i = 0; i < _icons.Length; i++) _icons[i].Visible = show[i];
-            TrayPromote.TryShowOnTaskbar();
+            _icon.Visible = false;
+            TrayPromote.HideHardwareIcons();
         }
 
-        public void SetTips(string cpu, string gpu, string ram, string net)
+        public void SetTip(string text)
         {
-            if (_icons[0] != null) _icons[0].Text = cpu;
-            if (_icons[1] != null) _icons[1].Text = gpu;
-            if (_icons[2] != null) _icons[2].Text = ram;
-            if (_icons[3] != null) _icons[3].Text = net;
+            if (_icon == null) return;
+            if (string.IsNullOrEmpty(text)) text = "miliDesk";
+            if (text.Length > 63) text = text.Substring(0, 63);
+            _icon.Text = text;
         }
 
         private void OnIconMouseUp(object sender, Forms.MouseEventArgs e)
@@ -312,22 +293,23 @@ namespace DeskMonitor
 
         public void Dispose()
         {
-            for (int i = 0; i < _icons.Length; i++)
+            if (_icon != null)
             {
-                if (_icons[i] == null) continue;
-                _icons[i].Visible = false;
-                _icons[i].Dispose();
+                _icon.Visible = false;
+                _icon.Dispose();
             }
-            for (int i = 0; i < _glyphs.Length; i++)
-            {
-                if (_glyphs[i] != null) _glyphs[i].Dispose();
-            }
+            if (_glyph != null) _glyph.Dispose();
         }
     }
 
+    /// <summary>
+    /// Windows remembers every NotifyIcon this exe ever created and can pin the
+    /// old CPU/GPU/RAM/ETH glyphs on the taskbar. Those four must stay in the
+    /// overflow; the optional strip is what "Show on taskbar" means.
+    /// </summary>
     internal static class TrayPromote
     {
-        public static void TryShowOnTaskbar()
+        public static void HideHardwareIcons()
         {
             try
             {
@@ -341,14 +323,8 @@ namespace DeskMonitor
                         using (var key = root.OpenSubKey(ids[i], true))
                         {
                             if (key == null) continue;
-                            var path = key.GetValue("ExecutablePath") as string;
-                            if (string.IsNullOrEmpty(path)) continue;
-                            if (path.IndexOf("DeskMonitor", StringComparison.OrdinalIgnoreCase) < 0 &&
-                                (exe == null || path.IndexOf(exe, StringComparison.OrdinalIgnoreCase) < 0))
-                            {
-                                continue;
-                            }
-                            key.SetValue("IsPromoted", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                            if (!IsOurs(key.GetValue("ExecutablePath") as string, exe)) continue;
+                            key.SetValue("IsPromoted", 0, Microsoft.Win32.RegistryValueKind.DWord);
                         }
                     }
                 }
@@ -357,21 +333,28 @@ namespace DeskMonitor
             {
             }
         }
+
+        private static bool IsOurs(string path, string exe)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            if (path.IndexOf("DeskMonitor", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (path.IndexOf("miliDesk", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (path.IndexOf("Preview.exe", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            return exe != null && path.IndexOf(exe, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
     }
 
     internal sealed class TaskbarDock : Window
     {
         private readonly OverlayWindow _host;
-        private readonly TrayFlyout _flyout;
         private readonly Button[] _buttons = new Button[4];
         private readonly TextBlock[] _values = new TextBlock[4];
         private readonly DispatcherTimer _timer;
         private static readonly string[] Names = { "CPU", "GPU", "RAM", "ETH" };
 
-        public TaskbarDock(OverlayWindow host, TrayFlyout flyout)
+        public TaskbarDock(OverlayWindow host)
         {
             _host = host;
-            _flyout = flyout;
             Title = "DeskMonitor Tray";
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -450,17 +433,16 @@ namespace DeskMonitor
             _values[index] = new TextBlock
             {
                 FontFamily = new FontFamily("Segoe UI"),
-                FontSize = 10.5,
+                FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Theme.Value,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 0, 0),
-                MinWidth = 26
+                Margin = new Thickness(0, 0, 5, 0)
             };
 
             var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            row.Children.Add(icon);
             row.Children.Add(_values[index]);
+            row.Children.Add(icon);
 
             var b = new Button
             {
@@ -469,12 +451,13 @@ namespace DeskMonitor
                 Margin = new Thickness(2, 0, 2, 0),
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand,
+                Cursor = Cursors.Arrow,
                 ToolTip = name,
                 Tag = name,
-                Padding = new Thickness(6, 2, 6, 2)
+                Padding = new Thickness(6, 2, 6, 2),
+                Focusable = false,
+                IsHitTestVisible = true
             };
-            b.Click += delegate { _flyout.Toggle(); };
             b.Template = IconButtonTemplate();
             return b;
         }
@@ -491,10 +474,6 @@ namespace DeskMonitor
             content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
             border.AppendChild(content);
             template.VisualTree = border;
-
-            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-            hover.Setters.Add(new Setter(Border.BackgroundProperty, Theme.Freeze(38, 255, 255, 255), "Shell"));
-            template.Triggers.Add(hover);
             return template;
         }
 

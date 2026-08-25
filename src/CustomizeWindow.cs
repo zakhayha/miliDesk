@@ -77,7 +77,7 @@ namespace DeskMonitor
             _nameAsIcon = MakeCheck("Names as icons", _s.NameAsIcon);
             _showPercent = MakeCheck("Show percentages", _s.ShowPercent);
             _separate = MakeCheck("Separate cards", _s.SeparateCharts);
-            _taskbar = MakeCheck("Show on taskbar", _s.TaskbarStrip);
+            _taskbar = MakeCheck("Show monitors on the taskbar", _s.TaskbarStrip);
             _cardOpacity = MakeSlider(15, 100, _s.CardOpacity * 100);
             _grain = MakeSlider(0, 40, _s.Grain * 100);
             _cpuView = new Picker(new[] { "Bars", "Rings" }, CpuViewToIndex(_s.CpuCoresView), Push);
@@ -192,12 +192,14 @@ namespace DeskMonitor
                 ColorRow("GPU", _gpuColors),
                 ColorRow("RAM", _ramColors),
                 ColorRow("ETH", _netColors)));
+            body.Children.Add(Group("Taskbar",
+                Checks(_taskbar),
+                Hint("When on, CPU, GPU, RAM, and Ethernet sit on the taskbar with live values in front of each icon. Turn it off to hide them.")));
             body.Children.Add(Group("Placement",
                 SnapRow(),
                 TwoCol(Field("Refresh", _interval), new Border()),
                 Checks(_fahrenheit),
-                Checks(_topmost, _startup),
-                Checks(_taskbar)));
+                Checks(_topmost, _startup)));
             body.Children.Add(Footer());
 
             var scroll = new ScrollViewer
@@ -286,7 +288,7 @@ namespace DeskMonitor
 
             var hint = new TextBlock
             {
-                Text = "Hover a card for extra stats. Tray icons open the same gauges. CPU temperature needs administrator once.",
+                Text = "Hover a card for extra stats. CPU temperature needs administrator once.\n" + AppInfo.Name + " " + AppInfo.Version,
                 FontSize = 11,
                 Foreground = Theme.Mute,
                 TextWrapping = TextWrapping.Wrap,
